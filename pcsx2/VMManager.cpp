@@ -19,6 +19,7 @@
 #include "Host.h"
 #include "INISettingsInterface.h"
 #include "ImGui/FullscreenUI.h"
+#include "ImGui/ImGuiManager.h"
 #include "ImGui/ImGuiOverlays.h"
 #include "Input/InputManager.h"
 #include "IopBios.h"
@@ -93,6 +94,8 @@ namespace VMManager
 	static void CheckForConfigChanges(const Pcsx2Config& old_config);
 	static void CheckForCPUConfigChanges(const Pcsx2Config& old_config);
 	static void CheckForGSConfigChanges(const Pcsx2Config& old_config);
+	static ImGuiManager::BezelFitMode ConvertBezelFitMode(GSBezelFitMode mode);
+	static void UpdateBezelOverlay();
 	static void CheckForEmulationSpeedConfigChanges(const Pcsx2Config& old_config);
 	static void CheckForPatchConfigChanges(const Pcsx2Config& old_config);
 	static void CheckForDEV9ConfigChanges(const Pcsx2Config& old_config);
@@ -679,6 +682,8 @@ void VMManager::LoadCoreSettings(SettingsInterface& si)
 	EmuConfig.GS.MaskUserHacks();
 	EmuConfig.GS.MaskUpscalingHacks();
 
+	UpdateBezelOverlay();
+
 	// Force MTVU off when playing back GS dumps, it doesn't get used.
 	if (GSDumpReplayer::IsReplayingDump())
 		EmuConfig.Speedhacks.vuThread = false;
@@ -977,9 +982,10 @@ void VMManager::RequestDisplaySize(float scale /*= 0.0f*/)
 
 std::string VMManager::GetSerialForGameSettings()
 {
-	// If we're running an ELF, we don't want to use the serial for any ISO override
-	// for game settings, since the game settings is where we define the override.
 	std::unique_lock lock(s_info_mutex);
+
+	// If we're running a normal loose ELF, don't use the serial for game settings,
+	// since the game settings layer is where ELF disc overrides are defined.
 	return s_elf_override.empty() ? std::string(s_disc_serial) : std::string();
 }
 
@@ -988,11 +994,18 @@ bool VMManager::UpdateGameSettingsLayer()
 	std::unique_ptr<INISettingsInterface> new_interface;
 	if (s_disc_crc != 0)
 	{
-		std::string filename(GetGameSettingsPath(GetSerialForGameSettings(), s_disc_crc));
+		const std::string game_serial = GetSerialForGameSettings();
+		std::string filename(GetGameSettingsPath(game_serial, s_disc_crc));
 		if (!FileSystem::FileExists(filename.c_str()))
 		{
-			// try the legacy format (crc.ini)
-			filename = GetGameSettingsPath({}, s_disc_crc);
+			if (!game_serial.empty())
+				filename = GetGameSettingsPath(game_serial, 0);
+
+			if (!FileSystem::FileExists(filename.c_str()))
+			{
+				// try the legacy format (crc.ini)
+				filename = GetGameSettingsPath({}, s_disc_crc);
+			}
 		}
 
 		if (FileSystem::FileExists(filename.c_str()))
@@ -1072,6 +1085,7 @@ void VMManager::UpdateDiscDetails(bool booting)
 		else if (CDVDsys_GetSourceType() != CDVD_SourceType::NoDisc)
 		{
 			cdvdGetDiscInfo(&s_disc_serial, &s_disc_elf, &s_disc_version, &s_disc_crc, nullptr);
+
 			serial_is_valid = !s_disc_serial.empty();
 		}
 		else if (!s_elf_override.empty())
@@ -3089,6 +3103,42 @@ void VMManager::Internal::PollInputOnCPUThread()
 	}
 }
 
+ImGuiManager::BezelFitMode VMManager::ConvertBezelFitMode(GSBezelFitMode mode)
+{
+	switch (mode)
+	{
+		case GSBezelFitMode::Stretch:
+			return ImGuiManager::BezelFitMode::Stretch;
+
+		case GSBezelFitMode::Fill:
+			return ImGuiManager::BezelFitMode::Cover;
+
+		case GSBezelFitMode::Fit:
+		case GSBezelFitMode::Center:
+		default:
+			return ImGuiManager::BezelFitMode::Contain;
+	}
+}
+
+void VMManager::UpdateBezelOverlay()
+{
+	Console.WriteLn("Bezel: UpdateBezelOverlay enabled=%s path='%s' opacity=%f scale=%d fit=%d fullscreen=%s bigpicture=%s",
+		EmuConfig.GS.BezelEnabled ? "true" : "false",
+		EmuConfig.GS.BezelPath.c_str(),
+		EmuConfig.GS.BezelOpacity,
+		EmuConfig.GS.BezelScale,
+		static_cast<int>(EmuConfig.GS.BezelFitMode),
+		EmuConfig.GS.BezelShowInFullscreen ? "true" : "false",
+		EmuConfig.GS.BezelShowInBigPicture ? "true" : "false");
+
+	ImGuiManager::SetBezelOverlay(
+		EmuConfig.GS.BezelEnabled,
+		EmuConfig.GS.BezelPath,
+		EmuConfig.GS.BezelOpacity,
+		static_cast<float>(EmuConfig.GS.BezelScale) / 100.0f,
+		ConvertBezelFitMode(EmuConfig.GS.BezelFitMode));
+}
+
 void VMManager::CheckForCPUConfigChanges(const Pcsx2Config& old_config)
 {
 	if (EmuConfig.Cpu == old_config.Cpu && EmuConfig.Gamefixes == old_config.Gamefixes &&
@@ -3121,6 +3171,17 @@ void VMManager::CheckForGSConfigChanges(const Pcsx2Config& old_config)
 		return;
 
 	Console.WriteLn("Updating GS configuration...");
+
+	if (EmuConfig.GS.BezelEnabled != old_config.GS.BezelEnabled ||
+		EmuConfig.GS.BezelPath != old_config.GS.BezelPath ||
+		EmuConfig.GS.BezelOpacity != old_config.GS.BezelOpacity ||
+		EmuConfig.GS.BezelScale != old_config.GS.BezelScale ||
+		EmuConfig.GS.BezelFitMode != old_config.GS.BezelFitMode ||
+		EmuConfig.GS.BezelShowInFullscreen != old_config.GS.BezelShowInFullscreen ||
+		EmuConfig.GS.BezelShowInBigPicture != old_config.GS.BezelShowInBigPicture)
+	{
+		UpdateBezelOverlay();
+	}
 
 	// We could just check whichever NTSC or PAL is appropriate for our current mode,
 	// but people _really_ shouldn't be screwing with framerate, so whatever.

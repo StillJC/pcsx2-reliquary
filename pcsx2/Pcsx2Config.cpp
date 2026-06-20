@@ -675,6 +675,14 @@ bool Pcsx2Config::McdOptions::operator!=(const McdOptions& right) const
 	return !this->operator==(right);
 }
 
+const char* Pcsx2Config::GSOptions::BezelFitModeNames[] = {
+	"Fit",
+	"Fill",
+	"Stretch",
+	"Center",
+	nullptr,
+};
+
 const char* Pcsx2Config::GSOptions::BlendingLevelNames[] = {
 	"Minimum",
 	"Basic",
@@ -843,6 +851,14 @@ bool Pcsx2Config::GSOptions::OptionsAreEqual(const GSOptions& right) const
 		OpEqu(Crop[2]) &&
 		OpEqu(Crop[3]) &&
 
+		OpEqu(BezelEnabled) &&
+		OpEqu(BezelPath) &&
+		OpEqu(BezelOpacity) &&
+		OpEqu(BezelScale) &&
+		OpEqu(BezelFitMode) &&
+		OpEqu(BezelShowInFullscreen) &&
+		OpEqu(BezelShowInBigPicture) &&
+
 		OpEqu(OsdScale) &&
 		OpEqu(OsdMargin) &&
 		OpEqu(OsdFontPath) &&
@@ -992,6 +1008,14 @@ void Pcsx2Config::GSOptions::LoadSave(SettingsWrapper& wrap)
 	SettingsWrapEntryEx(Crop[1], "CropTop");
 	SettingsWrapEntryEx(Crop[2], "CropRight");
 	SettingsWrapEntryEx(Crop[3], "CropBottom");
+
+	SettingsWrapBitBool(BezelEnabled);
+	SettingsWrapEntry(BezelPath);
+	SettingsWrapEntry(BezelOpacity);
+	SettingsWrapEntry(BezelScale);
+	SettingsWrapEnumEx(BezelFitMode, "BezelFitMode", BezelFitModeNames);
+	SettingsWrapBitBool(BezelShowInFullscreen);
+	SettingsWrapBitBool(BezelShowInBigPicture);
 
 	// Unfortunately, because code in the GS still reads the setting by key instead of
 	// using these variables, we need to use the old names. Maybe post 2.0 we can change this.
