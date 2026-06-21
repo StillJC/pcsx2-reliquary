@@ -3106,19 +3106,25 @@ void MainWindow::setGameListEntryBezelImage(const GameList::Entry& entry)
 	if (filename.isEmpty())
 		return;
 
-	std::string_view game_serial;
-	if (entry.type != GameList::EntryType::ELF)
-		game_serial = entry.serial;
+	const std::string settings_path = VMManager::GetGameSettingsPath(entry.serial, entry.crc);
 
-	const std::string settings_path = VMManager::GetGameSettingsPath(game_serial, entry.crc);
+	Console.WriteLn("Bezel: writing settings to '%s'", settings_path.c_str());
+	Console.WriteLn("Bezel: entry serial='%s' crc=%08X", std::string(entry.serial).c_str(), entry.crc);
 
 	INISettingsInterface sif(settings_path);
-	if (FileSystem::FileExists(sif.GetFileName().c_str()))
+	if (FileSystem::FileExists(settings_path.c_str()))
 		sif.Load();
 
 	const QByteArray utf8 = filename.toUtf8();
+
 	sif.SetStringValue("EmuCore/GS", "BezelPath", utf8.constData());
 	sif.SetBoolValue("EmuCore/GS", "BezelEnabled", true);
+	sif.SetFloatValue("EmuCore/GS", "BezelOpacity", 1.0f);
+	sif.SetFloatValue("EmuCore/GS", "BezelScale", 100.0f);
+	sif.SetStringValue("EmuCore/GS", "BezelFitMode", "Fit");
+	sif.SetBoolValue("EmuCore/GS", "BezelShowInFullscreen", true);
+	sif.SetBoolValue("EmuCore/GS", "BezelShowInBigPicture", true);
+
 	sif.Save();
 
 	g_emu_thread->reloadGameSettings();
@@ -3126,18 +3132,23 @@ void MainWindow::setGameListEntryBezelImage(const GameList::Entry& entry)
 
 void MainWindow::clearGameListEntryBezelImage(const GameList::Entry& entry)
 {
-	std::string_view game_serial;
-	if (entry.type != GameList::EntryType::ELF)
-		game_serial = entry.serial;
+	const std::string settings_path = VMManager::GetGameSettingsPath(entry.serial, entry.crc);
 
-	const std::string settings_path = VMManager::GetGameSettingsPath(game_serial, entry.crc);
+	Console.WriteLn("Bezel: clearing settings from '%s'", settings_path.c_str());
+	Console.WriteLn("Bezel: entry serial='%s' crc=%08X", std::string(entry.serial).c_str(), entry.crc);
 
 	INISettingsInterface sif(settings_path);
-	if (FileSystem::FileExists(sif.GetFileName().c_str()))
+	if (FileSystem::FileExists(settings_path.c_str()))
 		sif.Load();
 
 	sif.DeleteValue("EmuCore/GS", "BezelPath");
 	sif.DeleteValue("EmuCore/GS", "BezelEnabled");
+	sif.DeleteValue("EmuCore/GS", "BezelOpacity");
+	sif.DeleteValue("EmuCore/GS", "BezelScale");
+	sif.DeleteValue("EmuCore/GS", "BezelFitMode");
+	sif.DeleteValue("EmuCore/GS", "BezelShowInFullscreen");
+	sif.DeleteValue("EmuCore/GS", "BezelShowInBigPicture");
+
 	sif.Save();
 
 	g_emu_thread->reloadGameSettings();

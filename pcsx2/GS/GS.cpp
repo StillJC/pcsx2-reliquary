@@ -484,8 +484,7 @@ bool GSreopen(bool recreate_device, bool recreate_renderer, GSRendererType new_r
 	return true;
 }
 
-bool GSopen(const Pcsx2Config::GSOptions& config, GSRendererType renderer, u8* basemem,
-	GSVSyncMode vsync_mode, bool allow_present_throttle)
+bool GSopen(const Pcsx2Config::GSOptions& config, GSRendererType renderer, u8* basemem, GSVSyncMode vsync_mode, bool allow_present_throttle)
 {
 	GSConfig = config;
 
@@ -495,24 +494,30 @@ bool GSopen(const Pcsx2Config::GSOptions& config, GSRendererType renderer, u8* b
 	bool res = OpenGSDevice(renderer, true, false, vsync_mode, allow_present_throttle);
 	if (res)
 	{
-		ImGuiManager::SetBezelOverlay(
-			GSConfig.BezelEnabled,
-			GSConfig.BezelPath,
-			GSConfig.BezelOpacity,
-			GSConfig.BezelScale,
-			ConvertBezelFitMode(GSConfig.BezelFitMode));
-
 		res = OpenGSRenderer(renderer, basemem);
 		if (!res)
+		{
 			CloseGSDevice(true);
+		}
+		else
+		{
+			ImGuiManager::SetBezelOverlay(
+				GSConfig.BezelEnabled,
+				GSConfig.BezelPath,
+				GSConfig.BezelOpacity,
+				static_cast<float>(GSConfig.BezelScale) / 100.0f,
+				ConvertBezelFitMode(GSConfig.BezelFitMode));
+
+			ImGuiManager::ReloadBezelOverlay();
+		}
 	}
 
 	if (!res)
 	{
 		Host::ReportErrorAsync("Error",
 			fmt::format(TRANSLATE_FS("GS", "Failed to create render device. This may be due to your GPU not supporting the "
-			                               "chosen renderer ({}), or because your graphics drivers need to be updated."),
-			            Pcsx2Config::GSOptions::GetRendererName(GSConfig.Renderer)));
+										   "chosen renderer ({}), or because your graphics drivers need to be updated."),
+				Pcsx2Config::GSOptions::GetRendererName(GSConfig.Renderer)));
 		return false;
 	}
 
@@ -1138,8 +1143,7 @@ void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config)
 	if (new_config.OsdFontPath != old_config.OsdFontPath)
 		ImGuiManager::ReloadFonts();
 
-		if (
-		new_config.BezelEnabled != old_config.BezelEnabled ||
+	if (new_config.BezelEnabled != old_config.BezelEnabled ||
 		new_config.BezelPath != old_config.BezelPath ||
 		new_config.BezelOpacity != old_config.BezelOpacity ||
 		new_config.BezelScale != old_config.BezelScale ||
@@ -1149,8 +1153,10 @@ void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config)
 			new_config.BezelEnabled,
 			new_config.BezelPath,
 			new_config.BezelOpacity,
-			new_config.BezelScale,
+			new_config.BezelScale / 100.0f,
 			ConvertBezelFitMode(new_config.BezelFitMode));
+
+		ImGuiManager::ReloadBezelOverlay();
 	}
 
 	// Options which need a full teardown/recreate.

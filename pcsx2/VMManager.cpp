@@ -786,6 +786,8 @@ void VMManager::ApplySettings()
 	EmuConfig.CopyRuntimeConfig(old_config);
 	LoadSettings();
 	CheckForConfigChanges(old_config);
+	UpdateBezelOverlay();
+	ImGuiManager::ReloadBezelOverlay();
 }
 
 void VMManager::ApplyCoreSettings()
@@ -3122,7 +3124,7 @@ ImGuiManager::BezelFitMode VMManager::ConvertBezelFitMode(GSBezelFitMode mode)
 
 void VMManager::UpdateBezelOverlay()
 {
-	Console.WriteLn("Bezel: UpdateBezelOverlay enabled=%s path='%s' opacity=%f scale=%d fit=%d fullscreen=%s bigpicture=%s",
+	Console.WriteLn("Bezel: UpdateBezelOverlay enabled=%s path='%s' opacity=%f scale=%f fit=%d fullscreen=%s bigpicture=%s",
 		EmuConfig.GS.BezelEnabled ? "true" : "false",
 		EmuConfig.GS.BezelPath.c_str(),
 		EmuConfig.GS.BezelOpacity,
@@ -3181,6 +3183,7 @@ void VMManager::CheckForGSConfigChanges(const Pcsx2Config& old_config)
 		EmuConfig.GS.BezelShowInBigPicture != old_config.GS.BezelShowInBigPicture)
 	{
 		UpdateBezelOverlay();
+		ImGuiManager::ReloadBezelOverlay();
 	}
 
 	// We could just check whichever NTSC or PAL is appropriate for our current mode,
